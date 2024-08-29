@@ -241,21 +241,21 @@ extension Parser {
         break
       }
 
-      let key = try trim(slurpUntil(.equal))
+      let key = try slurpUntil(.equal)
+
       // if the value starts with a quote, parse the whole value as a quoted string
       if char == "\"" {
         try skip(.quote)
         try pairs.updateValue(slurpUntil(.quote), forKey: key)
         if char == "," { skip(1) }
       } else {
-        try pairs.updateValue(trim(slurpUntil(.comma, required: false)), forKey: key)
+        try pairs.updateValue(
+          slurpUntil(.comma, required: false),
+          forKey: key
+        )
       }
     }
 
     return pairs
   }
-}
-
-private func trim(_ str: String) -> String {
-  str.trimmingCharacters(in: .whitespaces)
 }
