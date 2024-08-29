@@ -5,9 +5,28 @@
 //  Created by Spencer Alger on 8/29/24.
 //
 
-struct Ast {
+struct Ast: Equatable {
+  let nodes: [Node]
+}
+
+// MARK: Ast parser
+
+extension Ast {
   enum Node: Equatable {
-    typealias Attributes = [String: String]
+    struct Attribute: Equatable {
+      let key: String
+      let value: Value
+      
+      init(_ key: String, _ value: Value) {
+        self.key = key
+        self.value = value
+      }
+      
+      enum Value: Equatable {
+        case quoted(String)
+        case unquoted(String)
+      }
+    }
     
     // basic tags
     case EXTM3U
@@ -17,12 +36,12 @@ struct Ast {
     case mediaSegment([MediaSegmentTag], String)
     enum MediaSegmentTag: Equatable {
       case EXTINF(Double, String?)
-      case EXT_X_BYTERANGE(length: Double, offset: Double)
+      case EXT_X_BYTERANGE(length: Double, offset: Double?)
       case EXT_X_DISCONTINUITY
-      case EXT_X_KEY(Attributes)
-      case EXT_X_MAP(Attributes)
+      case EXT_X_KEY([Attribute])
+      case EXT_X_MAP([Attribute])
       case EXT_X_PROGRAM_DATE_TIME(String)
-      case EXT_X_DATERANGE(Attributes)
+      case EXT_X_DATERANGE([Attribute])
     }
     
     // Media Playlist Tags
@@ -34,176 +53,272 @@ struct Ast {
     case EXT_X_I_FRAMES_ONLY
     
     // Master Playlist Tags
-    case EXT_X_MEDIA(Attributes)
-    case EXT_X_STREAM_INF(Attributes, String)
-    case EXT_X_I_FRAME_STREAM_INF(Attributes)
-    case EXT_X_SESSION_DATA(Attributes)
-    case EXT_X_SESSION_KEY(Attributes)
+    case EXT_X_MEDIA([Attribute])
+    case EXT_X_STREAM_INF([Attribute], String)
+    case EXT_X_I_FRAME_STREAM_INF([Attribute])
+    case EXT_X_SESSION_DATA([Attribute])
+    case EXT_X_SESSION_KEY([Attribute])
     
     // Media or Master Playlist Tags
     case EXT_X_INDEPENDENT_SEGMENTS
-    case EXT_X_START(Attributes)
-    
-    // tokens
-    case unknown(String)
-    case resolution(width: Int, height: Int)
+    case EXT_X_START([Attribute])
   }
-
-  static func parse(_ input: String) throws(ParseError) -> [Node] {
-    let parser = Parser(input)
+  
+  static func parse(_ input: String) throws(ParseError) -> Ast {
+    let p = Parser(input)
     var nodes = [Node]()
     
-    var mediaSegmentInProgress: [Node.MediaSegmentTag]?
+    var partialSegment: [Node.MediaSegmentTag]?
     
-    while !parser.isAtEnd {
-      if parser.char != "#" {
-        parser.skip(.whitespace)
+    while !p.isAtEnd {
+      if p.char != "#" {
+        p.skip(.whitespace)
         
-        if parser.eol != nil {
+        if p.eol != nil {
           // skip empty line
-          try parser.endLine()
+          try p.endLine()
           continue
         }
         
         // collect URL for media segment in progress
-        if let msNodes = mediaSegmentInProgress {
-          mediaSegmentInProgress = nil
-          try nodes.append(.mediaSegment(msNodes, parser.slurpLine()))
+        if let msNodes = partialSegment {
+          partialSegment = nil
+          try nodes.append(.mediaSegment(msNodes, p.slurpLine()))
           continue
         }
         
-        throw ParseError.expectedEndOfLine(at: parser.offset)
+        throw ParseError.expectedEndOfLine(at: p.offset)
       }
       
-      try parser.skip(control: "#")
-      let tag = parser.slurp(.tagName)
+      try p.skip(control: "#")
+      let tag = p.slurp(.tagName)
       
       switch tag {
         case "EXTM3U":
           nodes.append(.EXTM3U)
-          try parser.endLine()
+          try p.endLine()
           
         case "EXT-X-VERSION":
-          try parser.skip(.colon)
-          try nodes.append(.EXT_X_VERSION(parser.slurpInt()))
-          try parser.endLine()
+          try p.skip(.colon)
+          try nodes.append(.EXT_X_VERSION(p.slurpInt()))
+          try p.endLine()
           
         case "EXTINF":
-          if mediaSegmentInProgress == nil { mediaSegmentInProgress = [] }
+          partialSegment = partialSegment ?? []
+          try p.skip(.colon)
           
-          try parser.skip(.colon)
-          let duration = try parser.slurpDouble()
-          if parser.isEol {
-            mediaSegmentInProgress?.append(.EXTINF(duration, nil))
-            try parser.endLine()
+          let duration = try p.slurpDouble()
+          if p.isEol {
+            partialSegment?.append(.EXTINF(duration, nil))
+            try p.endLine()
             continue
           }
           
-          try parser.skip(.comma)
-          try mediaSegmentInProgress?.append(.EXTINF(duration, parser.slurpLine()))
+          try p.skip(.comma)
+          try partialSegment?.append(.EXTINF(duration, p.slurpLine()))
           
         case "EXT-X-BYTERANGE":
-          if mediaSegmentInProgress == nil { mediaSegmentInProgress = [] }
-          try parser.skip(.colon)
+          partialSegment = partialSegment ?? []
+          try p.skip(.colon)
           
-          let length = try parser.slurpDouble()
-          if parser.isEol {
-            mediaSegmentInProgress?.append(.EXT_X_BYTERANGE(length: length, offset: 0))
-            try parser.endLine()
+          let length = try p.slurpDouble()
+          if p.isEol {
+            partialSegment?.append(.EXT_X_BYTERANGE(length: length, offset: nil))
+            try p.endLine()
             continue
           }
           
-          try parser.skip(control: "@")
-          let offset = try parser.slurpDouble()
-          mediaSegmentInProgress?.append(.EXT_X_BYTERANGE(length: length, offset: offset))
-          try parser.endLine()
+          try p.skip(control: "@")
+          let offset = try p.slurpDouble()
+          partialSegment?.append(.EXT_X_BYTERANGE(length: length, offset: offset))
+          try p.endLine()
           
         case "EXT-X-DISCONTINUITY":
-          if mediaSegmentInProgress == nil { mediaSegmentInProgress = [] }
-          mediaSegmentInProgress?.append(.EXT_X_DISCONTINUITY)
-          try parser.endLine()
+          partialSegment = partialSegment ?? []
+          partialSegment?.append(.EXT_X_DISCONTINUITY)
+          try p.endLine()
           
         case "EXT-X-KEY":
-          if mediaSegmentInProgress == nil { mediaSegmentInProgress = [] }
-          try parser.skip(.colon)
-          try mediaSegmentInProgress?.append(.EXT_X_KEY(parser.slurpAttributes()))
+          partialSegment = partialSegment ?? []
+          try p.skip(.colon)
+          try partialSegment?.append(.EXT_X_KEY(p.slurpAttributes()))
           
         case "EXT-X-MAP":
-          if mediaSegmentInProgress == nil { mediaSegmentInProgress = [] }
-          try parser.skip(.colon)
-          try mediaSegmentInProgress?.append(.EXT_X_MAP(parser.slurpAttributes()))
+          partialSegment = partialSegment ?? []
+          try p.skip(.colon)
+          try partialSegment?.append(.EXT_X_MAP(p.slurpAttributes()))
           
         case "EXT-X-PROGRAM-DATE-TIME":
-          if mediaSegmentInProgress == nil { mediaSegmentInProgress = [] }
-          try parser.skip(.colon)
-          try mediaSegmentInProgress?.append(.EXT_X_PROGRAM_DATE_TIME(parser.slurpLine()))
+          partialSegment = partialSegment ?? []
+          try p.skip(.colon)
+          try partialSegment?.append(.EXT_X_PROGRAM_DATE_TIME(p.slurpLine()))
           
         case "EXT-X-DATERANGE":
-          if mediaSegmentInProgress == nil { mediaSegmentInProgress = [] }
-          try parser.skip(.colon)
-          try mediaSegmentInProgress?.append(.EXT_X_DATERANGE(parser.slurpAttributes()))
+          partialSegment = partialSegment ?? []
+          try p.skip(.colon)
+          try partialSegment?.append(.EXT_X_DATERANGE(p.slurpAttributes()))
           
         case "EXT-X-TARGETDURATION":
-          try parser.skip(.colon)
-          try nodes.append(.EXT_X_TARGETDURATION(parser.slurpInt()))
-          try parser.endLine()
+          try p.skip(.colon)
+          try nodes.append(.EXT_X_TARGETDURATION(p.slurpInt()))
+          try p.endLine()
           
         case "EXT-X-MEDIA-SEQUENCE":
-          try parser.skip(.colon)
-          try nodes.append(.EXT_X_MEDIA_SEQUENCE(parser.slurpInt()))
-          try parser.endLine()
+          try p.skip(.colon)
+          try nodes.append(.EXT_X_MEDIA_SEQUENCE(p.slurpInt()))
+          try p.endLine()
           
         case "EXT-X-DISCONTINUITY-SEQUENCE":
-          try parser.skip(.colon)
-          try nodes.append(.EXT_X_DISCONTINUITY_SEQUENCE(parser.slurpInt()))
-          try parser.endLine()
+          try p.skip(.colon)
+          try nodes.append(.EXT_X_DISCONTINUITY_SEQUENCE(p.slurpInt()))
+          try p.endLine()
           
         case "EXT-X-ENDLIST":
           nodes.append(.EXT_X_ENDLIST)
-          try parser.endLine()
+          try p.endLine()
           
         case "EXT-X-PLAYLIST-TYPE":
-          try parser.skip(.colon)
-          try nodes.append(.EXT_X_PLAYLIST_TYPE(parser.slurpLine()))
+          try p.skip(.colon)
+          try nodes.append(.EXT_X_PLAYLIST_TYPE(p.slurpLine()))
           
         case "EXT-X-I-FRAMES-ONLY":
           nodes.append(.EXT_X_I_FRAMES_ONLY)
-          try parser.endLine()
-
+          try p.endLine()
+          
         case "EXT-X-MEDIA":
-          try parser.skip(.colon)
-          try nodes.append(.EXT_X_MEDIA(parser.slurpAttributes()))
+          try p.skip(.colon)
+          try nodes.append(.EXT_X_MEDIA(p.slurpAttributes()))
           
         case "EXT-X-STREAM-INF":
-          try parser.skip(.colon)
-          try nodes.append(.EXT_X_STREAM_INF(parser.slurpAttributes(), parser.slurpLine()))
+          try p.skip(.colon)
+          try nodes.append(.EXT_X_STREAM_INF(p.slurpAttributes(), p.slurpLine()))
           
         case "EXT-X-I-FRAME-STREAM-INF":
-          try parser.skip(.colon)
-          try nodes.append(.EXT_X_I_FRAME_STREAM_INF(parser.slurpAttributes()))
+          try p.skip(.colon)
+          try nodes.append(.EXT_X_I_FRAME_STREAM_INF(p.slurpAttributes()))
           
         case "EXT-X-SESSION-DATA":
-          try parser.skip(.colon)
-          try nodes.append(.EXT_X_SESSION_DATA(parser.slurpAttributes()))
+          try p.skip(.colon)
+          try nodes.append(.EXT_X_SESSION_DATA(p.slurpAttributes()))
           
         case "EXT-X-SESSION-KEY":
-          try parser.skip(.colon)
-          try nodes.append(.EXT_X_SESSION_KEY(parser.slurpAttributes()))
+          try p.skip(.colon)
+          try nodes.append(.EXT_X_SESSION_KEY(p.slurpAttributes()))
           
         case "EXT-X-INDEPENDENT-SEGMENTS":
           nodes.append(.EXT_X_INDEPENDENT_SEGMENTS)
           
         case "EXT-X-START":
-          try parser.skip(.colon)
-          try nodes.append(.EXT_X_START(parser.slurpAttributes()))
+          try p.skip(.colon)
+          try nodes.append(.EXT_X_START(p.slurpAttributes()))
           
         default:
           continue
       }
     }
     
-    return nodes
+    return .init(nodes: nodes)
   }
   
-  let nodes: [Node]
+  static func print(_ ast: Ast) -> String {
+    ast.nodes
+      .map { node -> String in
+        switch node {
+          case .EXTM3U:
+            return "#EXTM3U"
+            
+          case .EXT_X_VERSION(let version):
+            return "#EXT-X-VERSION:\(version)"
+                
+          case .mediaSegment(let tags, let url):
+            return (tags.map { print($0) } + [url])
+              .joined(separator: "\n")
+
+          case .EXT_X_TARGETDURATION(let int):
+            return "#EXT-X-TARGETDURATION:\(int)"
+            
+          case .EXT_X_MEDIA_SEQUENCE(let int):
+            return "#EXT-X-MEDIA-SEQUENCE:\(int)"
+            
+          case .EXT_X_DISCONTINUITY_SEQUENCE(let int):
+            return "#EXT-X-DISCONTINUITY-SEQUENCE:\(int)"
+            
+          case .EXT_X_ENDLIST:
+            return "#EXT-X-ENDLIST"
+            
+          case .EXT_X_PLAYLIST_TYPE(let string):
+            return "#EXT-X-PLAYLIST-TYPE:\(string)"
+            
+          case .EXT_X_I_FRAMES_ONLY:
+            return "#EXT-X-I-FRAMES-ONLY"
+            
+          case .EXT_X_MEDIA(let attributes):
+            return "#EXT-X-MEDIA:\(print(attributes))"
+
+          case .EXT_X_STREAM_INF(let attributes, let uri):
+            return "#EXT-X-STREAM-INF:\(print(attributes))\n\(uri)"
+
+          case .EXT_X_I_FRAME_STREAM_INF(let attributes):
+            return "#EXT-X-I-FRAME-STREAM-INF:\(print(attributes))"
+
+          case .EXT_X_SESSION_DATA(let attributes):
+            return "#EXT-X-SESSION-DATA:\(print(attributes))"
+
+          case .EXT_X_SESSION_KEY(let attributes):
+            return "#EXT-X-SESSION-KEY:\(print(attributes))"
+
+          case .EXT_X_INDEPENDENT_SEGMENTS:
+            return "#EXT-X-INDEPENDENT-SEGMENTS"
+
+          case .EXT_X_START(let attributes):
+            return "#EXT-X-START:\(print(attributes))"
+        }
+      }
+      .joined(separator: "\n")
+  }
+  
+  static func print(_ tag: Node.MediaSegmentTag) -> String {
+    switch tag {
+      case .EXTINF(let double, let string):
+        return "#EXTINF:\(double),\(string ?? "")"
+
+      case .EXT_X_BYTERANGE(let length, let offset):
+        let base = "#EXT-X-BYTERANGE:\(length)"
+        if let offset {
+          return "\(base)@\(offset)"
+        } else {
+          return base
+        }
+
+      case .EXT_X_DISCONTINUITY:
+        return "#EXT-X-DISCONTINUITY"
+        
+      case .EXT_X_KEY(let attributes):
+        return "#EXT-X-KEY:\(print(attributes))"
+        
+      case .EXT_X_MAP(let attributes):
+        return "#EXT-X-MAP:\(print(attributes))"
+        
+      case .EXT_X_PROGRAM_DATE_TIME(let dateStr):
+        return "#EXT-X-PROGRAM-DATE-TIME:\(dateStr)"
+
+      case .EXT_X_DATERANGE(let attributes):
+        return "#EXT-X-DATERANGE:\(print(attributes))"
+    }
+  }
+  
+  static func print(_ attributes: [Node.Attribute]) -> String {
+    attributes
+      .map { "\($0.key)=\(print($0.value))" }
+      .joined(separator: ",")
+  }
+  
+  static func print(_ value: Node.Attribute.Value) -> String {
+    switch value {
+      case .quoted(let string):
+        return "\"\(string)\""
+      case .unquoted(let string):
+        return string
+    }
+  }
 }

@@ -206,17 +206,17 @@ struct StringParserTests {
 
   @Test func slurpAttributes() throws {
     // stops parsing attributes at the end of the content
-    let p = Parser("key=value,key2=value2")
+    let p = Parser("key=value,key2=\"value2\"")
     #expect(try p.slurpAttributes() == [
-      "key": "value",
-      "key2": "value2"
+      .init("key", .unquoted("value")),
+      .init("key2", .quoted("value2")),
     ])
 
     // stops parsing attributes at the end of the line
     let p2 = Parser("key=value,key2=value2\nabc")
     #expect(try p2.slurpAttributes() == [
-      "key": "value",
-      "key2": "value2"
+      .init("key", .unquoted("value")),
+      .init("key2", .unquoted("value2")),
     ])
     #expect(p2.rest() == "abc")
   }

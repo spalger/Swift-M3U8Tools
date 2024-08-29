@@ -228,8 +228,8 @@ extension Parser {
     return String(string.suffix(from: pos))
   }
 
-  func slurpAttributes() throws(ParseError) -> Ast.Node.Attributes {
-    var pairs = Ast.Node.Attributes()
+  func slurpAttributes() throws(ParseError) -> [Ast.Node.Attribute] {
+    var attrs = [Ast.Node.Attribute]()
 
     while true {
       if let eol {
@@ -246,16 +246,13 @@ extension Parser {
       // if the value starts with a quote, parse the whole value as a quoted string
       if char == "\"" {
         try skip(.quote)
-        try pairs.updateValue(slurpUntil(.quote), forKey: key)
+        try attrs.append(.init(key, .quoted(slurpUntil(.quote))))
         if char == "," { skip(1) }
       } else {
-        try pairs.updateValue(
-          slurpUntil(.comma, required: false),
-          forKey: key
-        )
+        try attrs.append(.init(key, .unquoted(slurpUntil(.comma, required: false))))
       }
     }
 
-    return pairs
+    return attrs
   }
 }
