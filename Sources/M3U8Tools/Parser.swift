@@ -42,14 +42,14 @@ class Parser {
   }
 
   var isEol: Bool {
-    return eol != nil
+    eol != nil
   }
 
   var peek: Character? {
     if let pos, string.distance(from: pos, to: string.endIndex) > 1 {
-      return string[string.index(after: pos)]
+      string[string.index(after: pos)]
     } else {
-      return nil
+      nil
     }
   }
 
@@ -88,9 +88,9 @@ class Parser {
 
   func upcoming(_ type: Character) -> Bool {
     if let pos {
-      return string.suffix(from: pos).firstIndex(of: type) != nil
+      string.suffix(from: pos).firstIndex(of: type) != nil
     } else {
-      return false
+      false
     }
   }
 
@@ -138,7 +138,7 @@ class Parser {
   }
 
   func slurpUntil(_ control: Symbol, required req: Bool = true) throws(ParseError) -> String {
-    return try slurpUntil(control: control.rawValue, required: req)
+    try slurpUntil(control: control.rawValue, required: req)
   }
 
   func slurpUntil(control: Character, required: Bool = true) throws(ParseError) -> String {

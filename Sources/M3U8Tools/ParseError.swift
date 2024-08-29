@@ -1,5 +1,5 @@
 //
-//  Err.swift
+//  ParseError.swift
 //  M3U8Tools
 //
 //  Created by Spencer Alger on 8/28/24.
