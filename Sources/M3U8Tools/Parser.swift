@@ -231,9 +231,6 @@ extension Parser {
   func slurpAttributes() throws(ParseError) -> Ast.Node.Attributes {
     var pairs = Ast.Node.Attributes()
 
-    // regex from https://github.com/videojs/m3u8-parser/blob/26d880375e1dec76fe118acfed06657cb4688d7c/src/parse-stream.js#L32-L38
-    // (?:^|,)((?:[^=]*)=(?:"[^"]*"|[^,]*))
-
     while true {
       if let eol {
         skip(eol.count)
