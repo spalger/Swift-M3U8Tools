@@ -34,11 +34,9 @@ class Parser {
   var eol: String?
 
   var string: String
-  var complete: Bool
 
-  init(_ input: String, complete: Bool = true) {
+  init(_ input: String) {
     self.string = input
-    self.complete = complete
     self.pos = string.startIndex == string.endIndex ? nil : string.startIndex
     step(0)
   }
