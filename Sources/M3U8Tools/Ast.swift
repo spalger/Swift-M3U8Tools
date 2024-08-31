@@ -6,7 +6,15 @@
 //
 
 public struct Ast: Equatable {
-  let nodes: [Node]
+  public let nodes: [Node]
+
+  public init(nodes: [Node]) {
+    self.nodes = nodes
+  }
+
+  public func map(_ transform: (Node) -> Node) -> Ast {
+    .init(nodes: nodes.map(transform))
+  }
 }
 
 // MARK: Parsing
