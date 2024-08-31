@@ -22,10 +22,10 @@ public struct Ast: Equatable {
 public extension Ast {
   enum Node: Equatable {
     public struct Attribute: Equatable {
-      let key: String
-      let value: Value
+      public let key: String
+      public let value: Value
 
-      init(_ key: String, _ value: Value) {
+      public init(_ key: String, _ value: Value) {
         self.key = key
         self.value = value
       }
