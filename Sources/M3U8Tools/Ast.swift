@@ -5,15 +5,15 @@
 //  Created by Spencer Alger on 8/29/24.
 //
 
-struct Ast: Equatable {
+public struct Ast: Equatable {
   let nodes: [Node]
 }
 
 // MARK: Parsing
 
-extension Ast {
+public extension Ast {
   enum Node: Equatable {
-    struct Attribute: Equatable {
+    public struct Attribute: Equatable {
       let key: String
       let value: Value
 
@@ -22,7 +22,7 @@ extension Ast {
         self.value = value
       }
 
-      enum Value: Equatable {
+      public enum Value: Equatable {
         case quoted(String)
         case unquoted(String)
       }
@@ -34,7 +34,7 @@ extension Ast {
 
     // Media Segment
     case mediaSegment([MediaSegmentTag], String)
-    enum MediaSegmentTag: Equatable {
+    public enum MediaSegmentTag: Equatable {
       case EXTINF(Double, String?)
       case EXT_X_BYTERANGE(length: Double, offset: Double?)
       case EXT_X_DISCONTINUITY
@@ -223,7 +223,7 @@ extension Ast {
 
 // MARK: Printing
 
-extension Ast {
+public extension Ast {
   static func print(_ ast: Ast) -> String {
     ast.nodes
       .map { print($0) }
