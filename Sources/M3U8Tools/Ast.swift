@@ -54,6 +54,7 @@ public extension Ast {
 
     // Media Playlist Tags
     case EXT_X_TARGETDURATION(Int)
+    case EXT_X_ALLOW_CACHE(String)
     case EXT_X_MEDIA_SEQUENCE(Int)
     case EXT_X_DISCONTINUITY_SEQUENCE(Int)
     case EXT_X_ENDLIST
@@ -171,6 +172,10 @@ public extension Ast {
           try nodes.append(.EXT_X_TARGETDURATION(p.slurpInt()))
           try p.endLine()
 
+        case "EXT-X-ALLOW-CACHE":
+          try p.skip(.colon)
+          try nodes.append(.EXT_X_ALLOW_CACHE(p.slurpLine()))
+
         case "EXT-X-MEDIA-SEQUENCE":
           try p.skip(.colon)
           try nodes.append(.EXT_X_MEDIA_SEQUENCE(p.slurpInt()))
@@ -221,7 +226,7 @@ public extension Ast {
           try nodes.append(.EXT_X_START(p.slurpAttributes()))
 
         default:
-          continue
+          throw ParseError.unexpectedTag(name: tag)
       }
     }
 
@@ -252,6 +257,9 @@ public extension Ast {
 
       case .EXT_X_TARGETDURATION(let int):
         "#EXT-X-TARGETDURATION:\(int)"
+
+      case .EXT_X_ALLOW_CACHE(let bool):
+        "#EXT-X-ALLOW-CACHE:\(bool)"
 
       case .EXT_X_MEDIA_SEQUENCE(let int):
         "#EXT-X-MEDIA-SEQUENCE:\(int)"

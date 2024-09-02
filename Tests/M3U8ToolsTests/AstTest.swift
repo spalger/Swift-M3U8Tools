@@ -287,4 +287,44 @@ struct AstTest {
 
     #expect(Ast.print(manifest) == lines)
   }
+
+  @Test func indexPlaylist() throws {
+    let lines = [
+      "#EXTM3U",
+      "#EXT-X-TARGETDURATION:10",
+      "#EXT-X-ALLOW-CACHE:NO",
+      "#EXT-X-MEDIA-SEQUENCE:0",
+      "#EXTINF:10, nodesc",
+      "00000.ts",
+      "#EXTINF:10, nodesc",
+      "00607.ts",
+      "#EXT-X-ENDLIST",
+    ].joined(separator: "\n")
+
+    let playlist = try Ast.parse(lines)
+    #expect(playlist == Ast(nodes: [
+      .EXTM3U,
+      .EXT_X_TARGETDURATION(10),
+      .EXT_X_ALLOW_CACHE("NO"),
+      .EXT_X_MEDIA_SEQUENCE(0),
+      .mediaSegment([.EXTINF(10, " nodesc")], "00000.ts"),
+      .mediaSegment([.EXTINF(10, " nodesc")], "00607.ts"),
+      .EXT_X_ENDLIST,
+    ]))
+  }
+
+  @Test func unknownTag() throws {
+    let lines = [
+      "#EXTM3U",
+      "#EXT-X-TARGETDURATION:10",
+      "#FOO",
+    ].joined(separator: "\n")
+
+    do {
+      _ = try Ast.parse(lines)
+      #expect(Bool(false))
+    } catch {
+      #expect(error == ParseError.unexpectedTag(name: "FOO"))
+    }
+  }
 }

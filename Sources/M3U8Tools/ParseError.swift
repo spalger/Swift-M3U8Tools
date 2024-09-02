@@ -10,4 +10,5 @@ public enum ParseError: Error, Equatable {
   case expectedEndOfLine(at: Int?)
   case unexpectedCharacter(at: Int?, Character, expected: Character)
   case unexpectedEndOfString(at: Int?, expected: Character)
+  case unexpectedTag(name: String)
 }
