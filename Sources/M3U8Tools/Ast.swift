@@ -50,6 +50,7 @@ public extension Ast {
       case EXT_X_MAP([Attribute])
       case EXT_X_PROGRAM_DATE_TIME(String)
       case EXT_X_DATERANGE([Attribute])
+      case EXT_X_GAP
     }
 
     // Media Playlist Tags
@@ -60,6 +61,8 @@ public extension Ast {
     case EXT_X_ENDLIST
     case EXT_X_PLAYLIST_TYPE(String)
     case EXT_X_I_FRAMES_ONLY
+    case EXT_X_IMAGES_ONLY
+    case EXT_X_TILES([Attribute])
 
     // Master Playlist Tags
     case EXT_X_MEDIA([Attribute])
@@ -167,6 +170,11 @@ public extension Ast {
           try p.skip(.colon)
           try partialSegment?.append(.EXT_X_DATERANGE(p.slurpAttributes()))
 
+        case "EXT-X-GAP":
+          partialSegment = partialSegment ?? []
+          try p.endLine()
+          partialSegment?.append(.EXT_X_GAP)
+
         case "EXT-X-TARGETDURATION":
           try p.skip(.colon)
           try nodes.append(.EXT_X_TARGETDURATION(p.slurpInt()))
@@ -225,6 +233,14 @@ public extension Ast {
           try p.skip(.colon)
           try nodes.append(.EXT_X_START(p.slurpAttributes()))
 
+        case "EXT-X-IMAGES-ONLY":
+          nodes.append(.EXT_X_IMAGES_ONLY)
+          try p.endLine()
+
+        case "EXT-X-TILES":
+          try p.skip(.colon)
+          try nodes.append(.EXT_X_TILES(p.slurpAttributes()))
+
         default:
           throw ParseError.unexpectedTag(name: tag)
       }
@@ -276,6 +292,12 @@ public extension Ast {
       case .EXT_X_I_FRAMES_ONLY:
         "#EXT-X-I-FRAMES-ONLY"
 
+      case .EXT_X_IMAGES_ONLY:
+        "#EXT-X-IMAGES-ONLY"
+
+      case .EXT_X_TILES(let attributes):
+        "#EXT-X-TILES:\(print(attributes))"
+
       case .EXT_X_MEDIA(let attributes):
         "#EXT-X-MEDIA:\(print(attributes))"
 
@@ -326,6 +348,9 @@ public extension Ast {
 
       case .EXT_X_DATERANGE(let attributes):
         return "#EXT-X-DATERANGE:\(print(attributes))"
+
+      case .EXT_X_GAP:
+        return "#EXT-X-GAP"
     }
   }
 

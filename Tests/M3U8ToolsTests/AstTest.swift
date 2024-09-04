@@ -313,6 +313,33 @@ struct AstTest {
     ]))
   }
 
+  @Test func imageOnlyPlaylist() throws {
+    let lines = [
+      "#EXTM3U",
+      "#EXT-X-IMAGES-ONLY",
+      "#EXT-X-TILES:FOO=bar",
+      "#EXT-X-TARGETDURATION:1",
+      "#EXTINF:1.0,",
+      "#EXT-X-GAP",
+      "img.jpg",
+    ].joined(separator: "\n")
+
+    let playlist = try Ast.parse(lines)
+    let expected = Ast(nodes: [
+      .EXTM3U,
+      .EXT_X_IMAGES_ONLY,
+      .EXT_X_TILES([.init("FOO", .unquoted("bar"))]),
+      .EXT_X_TARGETDURATION(1),
+      .mediaSegment([
+        .EXTINF(1, ""),
+        .EXT_X_GAP,
+      ], "img.jpg"),
+    ])
+
+    #expect(playlist == expected)
+    #expect(lines == Ast.print(expected))
+  }
+
   @Test func unknownTag() throws {
     let lines = [
       "#EXTM3U",
